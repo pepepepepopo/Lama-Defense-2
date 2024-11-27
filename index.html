@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lamas vs Bananas TD 2</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            background-color: #d7f5d1;
+        }
+
+        .controls {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tower-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tower-button {
+            padding: 10px;
+            background-color: #ccc;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        .tower-button:hover {
+            background-color: #aaa;
+        }
+
+        .stats {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+
+        #game-over {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+        }
+
+        #restart-button {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #restart-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="tower-buttons">
+            <button class="tower-button" onclick="setSelectedTower('minigun')">Minigun</button>
+            <button class="tower-button" onclick="setSelectedTower('freeze')">Freeze Ray</button>
+            <button class="tower-button" onclick="setSelectedTower('camo')">Camo Tower</button>
+            <button class="tower-button" onclick="setSelectedTower('standard')">Base Tower</button>
+        </div>
+        <div class="stats">
+            <div id="money-counter">Money: $500</div>
+            <div id="kill-counter">Kills: 0</div>
+        </div>
+    </div>
+
+    <div id="game-over">
+        <p>Game Over!</p>
+        <button id="restart-button" onclick="restartGame()">Restart</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let selectedTower = 'standard';
+        const towers = [];
+        const enemies = [];
+        let gameOver = false;
+        let money = 500;
+        let killCount = 0;
+
+        class Tower {
+            constructor(x, y, type) {
+                this.x = x;
+                this.y = y;
+                this.range = 100;
+                this.cooldown = 0;
+                this.type = type;
+            }
+
+            draw() {
+                ctx.fillStyle = this.type === 'minigun' ? 'gray' : this.type === 'freeze' ? 'lightblue' : this.type === 'camo' ? 'green' : 'brown';
+                ctx.fillRect(this.x - 20, this.y - 20, 40, 40);
+            }
+
+            update() {
+                if (this.cooldown > 0) this.cooldown--;
+                else {
+                    for (let enemy of enemies) {
+                        const dx = enemy.x - this.x;
+                        const dy = enemy.y - this.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < this.range) {
+                            this.shoot(enemy);
+                            this.cooldown = this.type === 'minigun' ? 5 : 20;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            shoot(target) {
+                if (this.type === 'freeze') target.speed = 0.5;
+                else target.health -= this.type === 'minigun' ? 5 : 10;
+
+                if (target.health <= 0) {
+                    killCount++;
+                    money += target.type === 'blue' ? 70 : target.type === 'red' ? 300 : 500;
+
+                    const index = enemies.indexOf(target);
+                    enemies.splice(index, 1);
+
+                    document.getElementById('money-counter').textContent = 'Money: $' + money;
+                    document.getElementById('kill-counter').textContent = 'Kills: ' + killCount;
+                }
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, health, speed, type) {
+                this.x = x;
+                this.y = y;
+                this.health = health;
+                this.speed = speed;
+                this.type = type;
+                this.size = 20;
+            }
+
+            draw() {
+                ctx.fillStyle = this.type === 'blue' ? 'blue' : this.type === 'red' ? 'red' : 'green';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size / 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.speed;
+                if (this.x > canvas.width) gameOver = true;
+            }
+        }
+
+        function setSelectedTower(type) {
+            selectedTower = type;
+        }
+
+        function placeTower(x, y) {
+            if (money >= 100) {
+                money -= 100;
+                towers.push(new Tower(x, y, selectedTower));
+                document.getElementById('money-counter').textContent = 'Money: $' + money;
+            }
+        }
+
+        function spawnEnemy(type) {
+            const x = 0;
+            const y = Math.random() * canvas.height;
+            const health = type === 'red' ? 300 : type === 'blue' ? 100 : 200;
+            const speed = type === 'red' ? 1 : type === 'blue' ? 2 : 3;
+            enemies.push(new Enemy(x, y, health, speed, type));
+        }
+
+        function restartGame() {
+            gameOver = false;
+            money = 500;
+            killCount = 0;
+            towers.length = 0;
+            enemies.length = 0;
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('money-counter').textContent = 'Money: $500';
+            document.getElementById('kill-counter').textContent = 'Kills: 0';
+            gameLoop();
+        }
+
+        function gameLoop() {
+            if (gameOver) {
+                document.getElementById('game-over').style.display = 'block';
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            towers.forEach(tower => {
+                tower.draw();
+                tower.update();
+            });
+
+            enemies.forEach(enemy => {
+                enemy.draw();
+                enemy.update();
+            });
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        setInterval(() => spawnEnemy('blue'), 2000);
+        setInterval(() => spawnEnemy('red'), 5000);
+        setInterval(() => spawnEnemy('camo'), 8000);
+
+        canvas.addEventListener('click', (e) => {
+            if (!gameOver) {
+                const rect = canvas.getBoundingClientRect();
+                placeTower(e.clientX - rect.left, e.clientY - rect.top);
+            }
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
